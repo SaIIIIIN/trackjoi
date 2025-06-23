@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TrackJoi — Авторизация</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .logo {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .logo img {
+      transform: scale(0.33);
+      max-width: 100%;
+      height: auto;
+    }
+    .logo-text {
+      font-size: 20px;
+      font-weight: bold;
+      color: #333;
+      margin-top: -20px;
+    }
+    .auth-tabs {
+      display: flex;
+      margin-bottom: 20px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      padding: 4px;
+    }
+    .auth-tab {
+      flex: 1;
+      padding: 12px;
+      text-align: center;
+      background: transparent;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+    .auth-tab.active {
+      background: rgba(255, 255, 255, 0.8);
+      color: #00796b;
+    }
+    .loading {
+      display: none;
+      text-align: center;
+      margin-top: 10px;
+      color: #00796b;
+    }
+    .loading.show {
+      display: block;
+    }
+    .success {
+      color: #4caf50;
+      text-align: center;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">
+      <img src="img/logo.png" alt="TrackJoi Logo" />
+      <div class="logo-text">TrackJoi</div>
+    </div>
+
+    <div class="card">
+      <!-- Вкладки для переключения между входом и регистрацией -->
+      <div class="auth-tabs">
+        <button class="auth-tab active" onclick="switchTab('login')">Вход</button>
+        <button class="auth-tab" onclick="switchTab('register')">Регистрация</button>
+      </div>
+
+      <!-- Форма входа -->
+      <form id="loginForm" style="display: block;">
+        <input type="email" id="loginEmail" placeholder="Ваша пошта" required />
+        <input type="password" id="loginPassword" placeholder="Пароль" required />
+        <button type="submit">Войти</button>
+        <div class="loading" id="loginLoading">Вход в систему...</div>
+        <div id="loginError" class="error"></div>
+      </form>
+
+      <!-- Форма регистрации -->
+      <form id="registerForm" style="display: none;">
+        <input type="email" id="registerEmail" placeholder="Ваша пошта" required />
+        <input type="password" id="registerPassword" placeholder="Пароль (минимум 6 символов)" required />
+        <input type="password" id="confirmPassword" placeholder="Подтвердите пароль" required />
+        <button type="submit">Зареєструватися</button>
+        <div class="loading" id="registerLoading">Создаем аккаунт...</div>
+        <div id="registerError" class="error"></div>
+        <div id="registerSuccess" class="success"></div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Конфигурация API
+    const API_BASE_URL = 'http://localhost:3000/api'; // Измените на ваш URL сервера
+
+    // Утилиты для работы с токеном
+    function saveToken(token) {
+      localStorage.setItem('authToken', token);
+    }
+
+    function getToken() {
+      return localStorage.getItem('authToken');
+    }
+
+    function removeToken() {
+      localStorage.removeItem('authToken');
+    }
+
+    // API функции
+    async function apiRequest(endpoint, options = {}) {
+      const token = getToken();
+      const headers = {
+        'Content-Type': 'application/json',
+        ...options.headers
+      };
+
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+          ...options,
+          headers
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Ошибка сервера');
+        }
+
+        return data;
+      } catch (error) {
+        console.error('API Error:', error);
+        throw error;
+      }
+    }
+
+    // Переключение между вкладками
+    function switchTab(tab) {
+      const loginForm = document.getElementById('loginForm');
+      const registerForm = document.getElementById('registerForm');
+      const tabs = document.querySelectorAll('.auth-tab');
+
+      // Очищаем ошибки
+      document.getElementById('loginError').textContent = '';
+      document.getElementById('registerError').textContent = '';
+      document.getElementById('registerSuccess').textContent = '';
+
+      if (tab === 'login') {
+        loginForm.style.display = 'block';
+        registerForm.style.display = 'none';
+        tabs[0].classList.add('active');
+        tabs[1].classList.remove('active');
+      } else {
+        loginForm.style.display = 'none';
+        registerForm.style.display = 'block';
+        tabs[0].classList.remove('active');
+        tabs[1].classList.add('active');
+      }
+    }
+
+    // Обработка входа
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const email = document.getElementById('loginEmail').value.trim();
+      const password = document.getElementById('loginPassword').value.trim();
+      const errorDiv = document.getElementById('loginError');
+      const loadingDiv = document.getElementById('loginLoading');
+
+      if (!email || !password) {
+        errorDiv.textContent = 'Будь ласка, введіть пошту і пароль';
+        return;
+      }
+
+      try {
+        loadingDiv.classList.add('show');
+        errorDiv.textContent = '';
+
+        const response = await apiRequest('/login', {
+          method: 'POST',
+          body: JSON.stringify({ email, password })
+        });
+
+        if (response.success) {
+          saveToken(response.token);
+          localStorage.setItem('userEmail', response.user.email);
+          localStorage.setItem('userId', response.user.id);
+          
+          // Перенаправляем на главную страницу
+          window.location.href = 'tasks.html';
+        }
+
+      } catch (error) {
+        errorDiv.textContent = error.message || 'Ошибка при входе';
+      } finally {
+        loadingDiv.classList.remove('show');
+      }
+    });
+
+    // Обработка регистрации
+    document.getElementById('registerForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const email = document.getElementById('registerEmail').value.trim();
+      const password = document.getElementById('registerPassword').value.trim();
+      const confirmPassword = document.getElementById('confirmPassword').value.trim();
+      const errorDiv = document.getElementById('registerError');
+      const successDiv = document.getElementById('registerSuccess');
+      const loadingDiv = document.getElementById('registerLoading');
+
+      // Валидация
+      if (!email || !password || !confirmPassword) {
+        errorDiv.textContent = 'Будь ласка, заповніть всі поля';
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        errorDiv.textContent = 'Паролі не співпадають';
+        return;
+      }
+
+      if (password.length < 6) {
+        errorDiv.textContent = 'Пароль повинен містити мінімум 6 символів';
+        return;
+      }
+
+      try {
+        loadingDiv.classList.add('show');
+        errorDiv.textContent = '';
+        successDiv.textContent = '';
+
+        const response = await apiRequest('/register', {
+          method: 'POST',
+          body: JSON.stringify({ email, password })
+        });
+
+        if (response.success) {
+          saveToken(response.token);
+          localStorage.setItem('userEmail', response.user.email);
+          localStorage.setItem('userId', response.user.id);
+          
+          successDiv.textContent = 'Реєстрація успішна! Перенаправляємо...';
+          
+          // Перенаправляем через 1.5 секунды
+          setTimeout(() => {
+            window.location.href = 'tasks.html';
+          }, 1500);
+        }
+
+      } catch (error) {
+        errorDiv.textContent = error.message || 'Ошибка при регистрации';
+      } finally {
+        loadingDiv.classList.remove('show');
+      }
+    });
+
+    // Проверяем, авторизован ли пользователь при загрузке страницы
+    window.addEventListener('load', function() {
+      const token = getToken();
+      if (token) {
+        // Если есть токен, перенаправляем на главную страницу
+        window.location.href = 'tasks.html';
+      }
+    });
+  </script>
+</body>
+</html>

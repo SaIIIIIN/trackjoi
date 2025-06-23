@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Редагування активності</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .info-msg {
+      text-align: center;
+      color: green;
+      margin-top: 10px;
+      opacity: 0;
+      transform: translateY(-10px);
+      transition: all 0.5s ease-in-out;
+    }
+    .info-msg.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .days-picker button.selected {
+      background-color: #00796b;
+      color: white;
+    }
+    .delete-btn {
+      background: #c62828;
+      color: #fff;
+      margin-top: 10px;
+    }
+    .delete-btn:hover {
+      background: #b71c1c;
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #333;
+    }
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 16px;
+    }
+    .progress-display {
+      background: #f8f9fa;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: #e0e0e0;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 8px 0;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #00796b, #4caf50);
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+    .progress-text {
+      font-size: 14px;
+      color: #666;
+      text-align: center;
+    }
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .button-group button {
+      flex: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2 class="page-title">Редагування активності</h2>
+
+    <div class="card">
+      <!-- Отображение текущего прогресса -->
+      <div class="progress-display">
+        <div class="progress-text">Поточний прогрес</div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="currentProgress" style="width: 0%"></div>
+        </div>
+        <div class="progress-text" id="progressText">0/0 днів • 0%</div>
+      </div>
+
+      <div class="form-group">
+        <label for="editName">Назва:</label>
+        <input type="text" id="editName">
+      </div>
+
+      <div class="form-group">
+        <label>Дні тижня:</label>
+        <div class="days-picker" id="editDays"></div>
+      </div>
+
+      <div class="checkbox-group">
+        <input type="checkbox" id="editReminder">
+        <label for="editReminder">Нагадування</label>
+      </div>
+
+      <div class="form-group">
+        <label for="completedDays">Виконано цього тижня:</label>
+        <input type="number" id="completedDays" min="0" max="7">
+      </div>
+
+      <div class="button-group">
+        <button onclick="saveEdit()">Зберегти</button>
+        <button onclick="cancelEdit()">Скасувати</button>
+      </div>
+      
+      <button class="delete-btn" onclick="deleteActivity()">Видалити</button>
+      <div id="saveMessage" class="info-msg">Зміни збережено!</div>
+    </div>
+  </div>
+
+  <script>
+    const days = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'нд'];
+    const editIndex = parseInt(localStorage.getItem('editIndex'), 10);
+    const activities = JSON.parse(localStorage.getItem('activities')) || [];
+
+    if (isNaN(editIndex) || !activities[editIndex]) {
+      alert('Активність не знайдена!');
+      window.location.href = 'tasks.html';
+    }
+
+    const activity = activities[editIndex];
+
+    // Заполняем форму данными активности
+    document.getElementById('editName').value = activity.name;
+    document.getElementById('editReminder').checked = activity.reminder || false;
+    document.getElementById('completedDays').value = activity.completedThisWeek || 0;
+
+    // Создаем кнопки для дней недели
+    const editDays = document.getElementById('editDays');
+    days.forEach(day => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = day;
+      btn.className = (activity.days && activity.days.includes(day)) ? 'selected' : '';
+      btn.onclick = () => {
+        btn.classList.toggle('selected');
+        updateProgress();
+      };
+      editDays.appendChild(btn);
+    });
+
+    // Функция для обновления отображения прогресса
+    function updateProgress() {
+      const selectedDays = Array.from(document.querySelectorAll('#editDays .selected')).length;
+      const completedDays = parseInt(document.getElementById('completedDays').value) || 0;
+      const progress = selectedDays > 0 ? Math.round((completedDays / selectedDays) * 100) : 0;
+      
+      document.getElementById('currentProgress').style.width = progress + '%';
+      document.getElementById('progressText').textContent = `${completedDays}/${selectedDays} днів • ${progress}%`;
+    }
+
+    // Обновляем прогресс при изменении количества выполненных дней
+    document.getElementById('completedDays').addEventListener('input', updateProgress);
+
+    // Ограничиваем максимальное количество выполненных дней
+    document.getElementById('completedDays').addEventListener('input', function() {
+      const selectedDays = Array.from(document.querySelectorAll('#editDays .selected')).length;
+      const maxDays = Math.max(selectedDays, 7);
+      this.max = maxDays;
+      if (parseInt(this.value) > maxDays) {
+        this.value = maxDays;
+      }
+      updateProgress();
+    });
+
+    // Инициализируем отображение прогресса
+    updateProgress();
+
+    function saveEdit() {
+      const name = document.getElementById('editName').value.trim();
+      if (!name) {
+        alert('Назва не може бути порожньою');
+        return;
+      }
+
+      const reminder = document.getElementById('editReminder').checked;
+      const selectedDays = Array.from(document.querySelectorAll('#editDays .selected')).map(btn => btn.textContent);
+      const completedThisWeek = parseInt(document.getElementById('completedDays').value) || 0;
+
+      // Обновляем активность
+      activities[editIndex] = { 
+        name, 
+        reminder, 
+        days: selectedDays,
+        completedThisWeek: Math.min(completedThisWeek, selectedDays.length) // Не больше выбранных дней
+      };
+      
+      localStorage.setItem('activities', JSON.stringify(activities));
+      localStorage.removeItem('editIndex');
+
+      const msg = document.getElementById('saveMessage');
+      msg.classList.add('visible');
+      setTimeout(() => {
+        msg.classList.remove('visible');
+        window.location.href = 'tasks.html';
+      }, 1200);
+    }
+
+    function cancelEdit() {
+      if (confirm('Ви впевнені, що хочете скасувати редагування?')) {
+        localStorage.removeItem('editIndex');
+        window.location.href = 'tasks.html';
+      }
+    }
+
+    function deleteActivity() {
+      if (!confirm('Видалити цю активність назавжди?')) return;
+      activities.splice(editIndex, 1);
+      localStorage.setItem('activities', JSON.stringify(activities));
+      localStorage.removeItem('editIndex');
+      window.location.href = 'tasks.html';
+    }
+  </script>
+</body>
+</html>
